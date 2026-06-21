@@ -1,0 +1,62 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+eggs/
+*.egg
+
+# Virtual Environment
+venv/
+.venv/
+env/
+.conda/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Logs
+log/
+*.log
+
+# Models (large files)
+saved_models_rnn/
+saved_models/
+*.pth
+*.pt
+*.pkl
+*.pickle
+
+# Data (large files)
+nfl-big-data-bowl-2026-prediction/
+data/
+*.csv
+*.parquet
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Kaggle
+kaggle_evaluation/
+/kaggle/
+
+# Cache
+__MACOSX/
+.cache/
+*.cache
+
+# Environment
+.env
+.env.local
