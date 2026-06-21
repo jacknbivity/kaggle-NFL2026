@@ -8,6 +8,21 @@
 
 ![Ranking](./RANK.png)
 
+## 👤 个人负责部分
+
+本仓库仅包含本人（[jacknbivity](https://github.com/jacknbivity)）负责的模型部分，涵盖两种深度学习轨迹预测方案。其余队友负责的数据清洗、特征工程方案整合、后处理优化等部分不在本仓库展开。
+
+本人核心贡献：
+- 🧠 设计并实现 **ST-GRU** 与 **ST-Transformer** 两种时空序列预测模型
+- 🎯 提出 **Temporal Huber Loss** 时序加权损失函数，对远期预测施加时间衰减惩罚
+- 🔀 **方向统一化** + **相对坐标变换** 预处理管线，消除进攻方向异构性
+- 📐 **Frame Spatial Attention** + **Relative Position Bias** 帧内球员交互建模
+- 🔢 **Fourier Feature Encoder** / **RBF Encoder** 位置高频编码
+- ⚡ 全流程 **内存优化**（float32 量化、Polars 高效数据处理、多进程并行加载）
+- 📊 **GroupKFold 多折交叉验证** + 多随机种子集成
+
+---
+
 本项目提供两种深度学习模型来预测 NFL 比赛中球员的移动轨迹：
 
 | 模型 | 文件 | 说明 |
@@ -86,24 +101,45 @@ python 519-STTransformer.py --mode infer
 ### 模型架构
 
 #### ST-GRU（时空门控循环单元）
-- Fourier Feature Encoder：傅里叶特征编码
-- RBF Encoder：径向基函数编码
-- Frame Spatial Attention：帧级空间注意力
-- Relative Position Bias：相对位置偏置
-- Temporal Huber Loss：时序 Huber 损失函数
+核心设计思路：**帧内空间注意力 → 帧间 GRU 时序建模 → 注意力池化 → 分段预测**
+
+| 模块 | 说明 |
+|------|------|
+| `FourierFeatureEncoder` | 多频率傅里叶编码（bands=1,2,4,8,16），将低维坐标映射到高维正弦/余弦空间 |
+| `RBFEncoder` | 径向基函数编码，对距离特征进行非线性展开 |
+| `RelativePositionBias` | 相对位置偏置，增强空间注意力对球员间几何关系的感知 |
+| `FrameSpatialAttention` | 帧内多头空间注意力，建模同一时刻所有球员的交互关系 |
+| `SpatioTemporal_GRU` | 堆叠 GRU 进行帧间时序编码，配合 MultiheadAttention 池化 |
+| `ResidualMLP` | 残差 MLP 预测头，分段输出 short/mid/long 三个时间范围 |
+| `TemporalHuber` | 时序加权 Huber 损失：时间衰减 + L2 平滑正则 |
 
 #### ST-Transformer（时空 Transformer）
-- 多头自注意力机制
-- 空间与时间维度分层建模
-- Temporal Huber Loss：时序 Huber 损失函数
+核心设计思路：**输入嵌入 + 时间位置编码 → 空间 Transformer（帧内） → 时间 Transformer（帧间） → 线性预测头**
+
+| 模块 | 说明 |
+|------|------|
+| `embedding` | 特征嵌入层，将输入映射到 hidden_dim |
+| `temporal_pos_embedding` | 可学习时间位置编码 |
+| `spatial_transformer` | nn.TransformerEncoder，GELU 激活，建模帧内球员空间交互 |
+| `temporal_transformer` | nn.TransformerEncoder，建模时序依赖 |
+| `head` | 线性层一次性输出 horizon×2 维位移预测 |
+
+### 损失函数：Temporal Huber Loss
+
+$$
+L = \underbrace{\frac{\sum_{t} w_t \cdot \text{Huber}(y_t, \hat{y}_t)}{\sum w_t}}_{\text{时间衰减 Huber}} + \lambda \cdot \underbrace{\frac{\sum_{t} \|\Delta^2 \hat{y}_t\|^2}{\sum m_t}}_{\text{二阶平滑正则}}
+$$
+
+其中 $w_t = e^{-\alpha t}$ 为时间衰减权重，越远的帧惩罚越小（鼓励模型优先学好近期预测）；$\lambda$ 控制轨迹平滑度。
 
 ### 训练策略
 
-- 5/10 折 GroupKFold 交叉验证
-- Early Stopping（patience=30）
-- 学习率 1e-3，Batch Size 128
-- 窗口大小 8，隐藏维度 128
-- 多随机种子集成
+- **交叉验证**：GroupKFold（按 game_id 分组），ST-GRU 5 折 / ST-Transformer 10 折
+- **早停**：patience=30 epochs
+- **优化器**：Adam，学习率 1e-3
+- **批次**：Batch Size 128，窗口大小 8，隐藏维度 128
+- **正则**：Dropout 0.1，LayerNorm，多随机种子集成
+- **数据质量**：截断超过 50 帧（5 秒）的异常长 play
 
 ## 项目结构
 
@@ -111,6 +147,7 @@ python 519-STTransformer.py --mode infer
 .
 ├── 519-ST-GRU.py          # ST-GRU 模型（主模型）
 ├── 519-STTransformer.py   # ST-Transformer 模型
+├── RANK.png              # 竞赛排名截图
 ├── requirements.txt       # Python 依赖
 ├── .gitignore            # Git 忽略规则
 ├── README.md             # 本文件
