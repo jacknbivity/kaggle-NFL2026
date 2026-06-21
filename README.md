@@ -2,6 +2,12 @@
 
 > Kaggle 竞赛：[NFL Big Data Bowl 2026 - Prediction](https://www.kaggle.com/competitions/nfl-big-data-bowl-2026-prediction)
 
+## 🏆 竞赛成绩
+
+**第 21 名 / 1899 支队伍**（Top ~1.1%）
+
+![Ranking](./RANK.png)
+
 本项目提供两种深度学习模型来预测 NFL 比赛中球员的移动轨迹：
 
 | 模型 | 文件 | 说明 |
